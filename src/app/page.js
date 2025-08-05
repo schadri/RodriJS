@@ -1,6 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { db } from "../firebaseConfig";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+} from "firebase/firestore";
 
 export default function Page() {
   const [showStock, setShowStock] = useState(false);
@@ -9,15 +20,30 @@ export default function Page() {
   const [quantity, setQuantity] = useState("");
   const [ingreso, setIngreso] = useState("");
   const [ingresoFijo, setIngresoFijo] = useState(false);
+  const [editandoStock, setEditandoStock] = useState(false);
   const [items, setItems] = useState([]);
 
-  // Cargar stock desde la API al iniciar
+  // Cargar productos y stock global al iniciar
   useEffect(() => {
-    fetch("/api/stock")
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) setItems(data);
-      });
+    const fetchData = async () => {
+      // Productos
+      const querySnapshot = await getDocs(collection(db, "stock"));
+      const docs = querySnapshot.docs.map((doc) => ({
+        ...doc.data(),
+        id: doc.id,
+      }));
+      setItems(docs);
+      // Stock global
+      const stockDoc = await getDoc(doc(db, "meta", "stockGlobal"));
+      if (stockDoc.exists()) {
+        setIngreso(stockDoc.data().valor.toString());
+        setIngresoFijo(true);
+      } else {
+        setIngreso("");
+        setIngresoFijo(false);
+      }
+    };
+    fetchData();
   }, []);
 
   const addItem = async () => {
@@ -25,22 +51,23 @@ export default function Page() {
     const ingresoNum = parseInt(ingreso);
     const cantidadNum = parseInt(quantity);
     if (cantidadNum > ingresoNum) return;
+    const stockRestante = ingresoNum - cantidadNum;
     const newItem = {
       name,
       price: parseFloat(price),
       quantity: cantidadNum,
     };
-    // Guardar en la base de datos
-    await fetch("/api/stock", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newItem),
-    });
-    // Refrescar lista
-    const res = await fetch("/api/stock");
-    const data = await res.json();
-    setItems(data);
-    setIngreso((prev) => (ingresoNum - cantidadNum).toString());
+    await addDoc(collection(db, "stock"), newItem);
+    // Guardar el stock global actualizado
+    await setDoc(doc(db, "meta", "stockGlobal"), { valor: stockRestante });
+    // Refrescar lista y stock
+    const querySnapshot = await getDocs(collection(db, "stock"));
+    const docs = querySnapshot.docs.map((doc) => ({
+      ...doc.data(),
+      id: doc.id,
+    }));
+    setItems(docs);
+    setIngreso(stockRestante.toString());
     setName("");
     setPrice("");
     setQuantity("");
@@ -48,17 +75,18 @@ export default function Page() {
   };
 
   const handleDelete = async (id, quantityToReturn) => {
-    // Eliminar en la base de datos
-    await fetch("/api/stock", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    // Refrescar lista
-    const res = await fetch("/api/stock");
-    const data = await res.json();
-    setItems(data);
-    setIngreso((prev) => (parseInt(prev || "0") + quantityToReturn).toString());
+    await deleteDoc(doc(db, "stock", id));
+    // Actualizar stock global
+    const nuevoStock = parseInt(ingreso || "0") + quantityToReturn;
+    await setDoc(doc(db, "meta", "stockGlobal"), { valor: nuevoStock });
+    // Refrescar lista y stock
+    const querySnapshot = await getDocs(collection(db, "stock"));
+    const docs = querySnapshot.docs.map((doc) => ({
+      ...doc.data(),
+      id: doc.id,
+    }));
+    setItems(docs);
+    setIngreso(nuevoStock.toString());
   };
 
   return (
@@ -79,14 +107,37 @@ export default function Page() {
           </button>
           {showStock && (
             <div className="mt-2 flex flex-col gap-2">
-              <input
-                className="border p-2 rounded"
-                placeholder="Ingreso"
-                type="number"
-                value={ingreso}
-                onChange={(e) => setIngreso(e.target.value)}
-                disabled={ingresoFijo}
-              />
+              <div className="flex gap-2 items-center">
+                <input
+                  className="border p-2 rounded"
+                  placeholder="Ingreso"
+                  type="number"
+                  value={ingreso}
+                  onChange={(e) => setIngreso(e.target.value)}
+                  disabled={ingresoFijo && !editandoStock}
+                />
+                {(ingresoFijo || editandoStock) && (
+                  <button
+                    className="bg-yellow-500 text-white px-2 py-1 rounded"
+                    type="button"
+                    onClick={async () => {
+                      if (editandoStock) {
+                        // Guardar el nuevo stock global en Firestore
+                        await setDoc(doc(db, "meta", "stockGlobal"), {
+                          valor: parseInt(ingreso),
+                        });
+                        setEditandoStock(false);
+                        setIngresoFijo(true);
+                      } else {
+                        setEditandoStock(true);
+                        setIngresoFijo(false);
+                      }
+                    }}
+                  >
+                    {editandoStock ? "OK" : "Editar stock disponible"}
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
