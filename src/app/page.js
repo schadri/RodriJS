@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 
 export default function Page() {
+  const [showDatos, setShowDatos] = useState(false);
   const [showStock, setShowStock] = useState(false);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
@@ -22,6 +23,16 @@ export default function Page() {
   const [ingresoFijo, setIngresoFijo] = useState(false);
   const [editandoStock, setEditandoStock] = useState(false);
   const [items, setItems] = useState([]);
+
+  // Calcular totales
+  const totalCantidad = items.reduce(
+    (acc, item) => acc + (parseInt(item.quantity) || 0),
+    0
+  );
+  const totalPrecio = items.reduce(
+    (acc, item) => acc + (parseFloat(item.price) || 0),
+    0
+  );
 
   // Cargar productos y stock global al iniciar
   useEffect(() => {
@@ -93,7 +104,16 @@ export default function Page() {
 
   return (
     <main className="p-6 max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Gestor de Stock</h1>
+      <div className="flex gap-4 items-center mb-4">
+        <h1 className="text-2xl font-bold">Gestor de Stock</h1>
+        <button
+          className="px-3 py-1 rounded bg-cyan-500 text-gray-700"
+          onClick={() => setShowDatos(true)}
+        >
+          Datos
+        </button>
+      </div>
+      {/* ...existing code... */}
       <div className="grid gap-4 mb-6">
         <div className="text-cyan-500 text-xl font-bold mb-2">
           Stock disponible: {ingreso || 0} G
@@ -171,7 +191,6 @@ export default function Page() {
           Agregar producto
         </button>
       </div>
-
       <div className="grid gap-4">
         {(() => {
           // Ordenar por fecha descendente
@@ -233,6 +252,34 @@ export default function Page() {
           });
         })()}
       </div>
+      {/* Modal de datos */}
+      {showDatos && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div
+            className="relative rounded-lg shadow-lg p-8 min-w-[300px] max-w-[90vw] border-4 border-cyan-500"
+            style={{ background: "#0A0A0A" }}
+          >
+            <button
+              className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-xl font-bold"
+              onClick={() => setShowDatos(false)}
+              aria-label="Cerrar"
+            >
+              ×
+            </button>
+            <h2 className="text-xl font-bold mb-4 text-cyan-600 text-center">
+              Datos Totales
+            </h2>
+            <div className="mb-2 text-lg">
+              <div>
+                <strong>Total cantidad: {totalCantidad} G </strong>
+              </div>
+            </div>
+            <div className="mb-2 text-lg">
+              <strong>Total precio:</strong> ${totalPrecio.toFixed(2)}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
