@@ -52,10 +52,12 @@ export default function Page() {
     const cantidadNum = parseInt(quantity);
     if (cantidadNum > ingresoNum) return;
     const stockRestante = ingresoNum - cantidadNum;
+    const fecha = new Date().toISOString();
     const newItem = {
       name,
       price: parseFloat(price),
       quantity: cantidadNum,
+      fecha,
     };
     await addDoc(collection(db, "stock"), newItem);
     // Guardar el stock global actualizado
@@ -171,28 +173,65 @@ export default function Page() {
       </div>
 
       <div className="grid gap-4">
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className="border p-4 rounded shadow flex flex-col gap-2"
-          >
-            <p>
-              <strong>Nombre:</strong> {item.name}
-            </p>
-            <p>
-              <strong>Precio:</strong> ${item.price.toFixed(2)}
-            </p>
-            <p>
-              <strong>Cantidad:</strong> {item.quantity}
-            </p>
-            <button
-              className="bg-red-500 text-white p-1 rounded w-fit"
-              onClick={() => handleDelete(item.id, item.quantity)}
-            >
-              Eliminar
-            </button>
-          </div>
-        ))}
+        {(() => {
+          // Ordenar por fecha descendente
+          const sortedItems = [...items].sort((a, b) =>
+            (b.fecha || "") > (a.fecha || "") ? 1 : -1
+          );
+          let lastMonth = "";
+          return sortedItems.map((item, idx) => {
+            const fechaObj = item.fecha ? new Date(item.fecha) : null;
+            const mes = fechaObj
+              ? fechaObj.toLocaleString("es-ES", {
+                  month: "long",
+                  year: "numeric",
+                })
+              : "";
+            const mostrarDivision = mes !== lastMonth;
+            lastMonth = mes;
+            return (
+              <>
+                {mostrarDivision && idx !== 0 && (
+                  <div className="border-t border-gray-300 my-4">
+                    <div className="text-gray-500 text-sm mt-2 mb-2 font-semibold">
+                      {mes.charAt(0).toUpperCase() + mes.slice(1)}
+                    </div>
+                  </div>
+                )}
+                <div
+                  key={item.id}
+                  className="border p-4 rounded shadow flex flex-col gap-2"
+                >
+                  <p>
+                    <strong>Nombre:</strong> {item.name}
+                  </p>
+                  <p>
+                    <strong>Precio:</strong> ${item.price.toFixed(2)}
+                  </p>
+                  <p>
+                    <strong>Cantidad:</strong> {item.quantity}
+                  </p>
+                  {fechaObj && (
+                    <p className="text-gray-500 text-xs">
+                      <strong>Fecha:</strong>{" "}
+                      {fechaObj.toLocaleDateString("es-ES", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </p>
+                  )}
+                  <button
+                    className="bg-red-500 text-white p-1 rounded w-fit"
+                    onClick={() => handleDelete(item.id, item.quantity)}
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </>
+            );
+          });
+        })()}
       </div>
     </main>
   );
