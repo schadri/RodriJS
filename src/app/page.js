@@ -24,6 +24,12 @@ export default function Page() {
   const [editandoStock, setEditandoStock] = useState(false);
   const [items, setItems] = useState([]);
 
+  // Estados para edición de productos
+  const [editId, setEditId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+  const [editQuantity, setEditQuantity] = useState("");
+
   // Calcular totales
   const totalCantidad = items.reduce(
     (acc, item) => acc + (parseInt(item.quantity) || 0),
@@ -102,6 +108,49 @@ export default function Page() {
     setIngreso(nuevoStock.toString());
   };
 
+  // Iniciar edición de producto
+  const handleEditInit = (item) => {
+    setEditId(item.id);
+    setEditName(item.name);
+    setEditPrice(item.price);
+    setEditQuantity(item.quantity);
+  };
+
+  // Cancelar edición
+  const handleEditCancel = () => {
+    setEditId(null);
+    setEditName("");
+    setEditPrice("");
+    setEditQuantity("");
+  };
+
+  // Guardar edición
+  const handleEditSave = async (item) => {
+    // Si cambia la cantidad, actualizar stock global
+    let nuevoStock = parseInt(ingreso || "0");
+    const cantidadOriginal = item.quantity;
+    const cantidadNueva = parseInt(editQuantity);
+    if (cantidadNueva !== cantidadOriginal) {
+      // Devolver la original y restar la nueva
+      nuevoStock = nuevoStock + cantidadOriginal - cantidadNueva;
+      await setDoc(doc(db, "meta", "stockGlobal"), { valor: nuevoStock });
+      setIngreso(nuevoStock.toString());
+    }
+    await updateDoc(doc(db, "stock", item.id), {
+      name: editName,
+      price: parseFloat(editPrice),
+      quantity: cantidadNueva,
+    });
+    // Refrescar lista
+    const querySnapshot = await getDocs(collection(db, "stock"));
+    const docs = querySnapshot.docs.map((doc) => ({
+      ...doc.data(),
+      id: doc.id,
+    }));
+    setItems(docs);
+    handleEditCancel();
+  };
+
   return (
     <main className="p-6 max-w-xl mx-auto">
       <div className="flex gap-4 items-center mb-4">
@@ -140,7 +189,7 @@ export default function Page() {
                 />
                 {(ingresoFijo || editandoStock) && (
                   <button
-                    className="bg-yellow-500 text-white px-2 py-1 rounded"
+                    className="bg-red-500 text-white px-2 py-1 rounded"
                     type="button"
                     onClick={async () => {
                       if (editandoStock) {
@@ -221,31 +270,80 @@ export default function Page() {
                   key={item.id}
                   className="border p-4 rounded shadow flex flex-col gap-2"
                 >
-                  <p>
-                    <strong>Nombre:</strong> {item.name}
-                  </p>
-                  <p>
-                    <strong>Precio:</strong> ${item.price.toFixed(2)}
-                  </p>
-                  <p>
-                    <strong>Cantidad:</strong> {item.quantity}
-                  </p>
-                  {fechaObj && (
-                    <p className="text-gray-500 text-xs">
-                      <strong>Fecha:</strong>{" "}
-                      {fechaObj.toLocaleDateString("es-ES", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </p>
+                  {editId === item.id ? (
+                    <>
+                      <input
+                        className="border p-1 rounded mb-1"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder="Nombre"
+                      />
+                      <input
+                        className="border p-1 rounded mb-1"
+                        type="number"
+                        value={editPrice}
+                        onChange={(e) => setEditPrice(e.target.value)}
+                        placeholder="Precio"
+                      />
+                      <input
+                        className="border p-1 rounded mb-1"
+                        type="number"
+                        value={editQuantity}
+                        onChange={(e) => setEditQuantity(e.target.value)}
+                        placeholder="Cantidad"
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          className="bg-green-500 text-white p-1 rounded"
+                          onClick={() => handleEditSave(item)}
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          className="bg-gray-400 text-white p-1 rounded"
+                          onClick={handleEditCancel}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p>
+                        <strong>Nombre:</strong> {item.name}
+                      </p>
+                      <p>
+                        <strong>Precio:</strong> ${item.price.toFixed(2)}
+                      </p>
+                      <p>
+                        <strong>Cantidad:</strong> {item.quantity}
+                      </p>
+                      {fechaObj && (
+                        <p className="text-gray-500 text-xs">
+                          <strong>Fecha:</strong>{" "}
+                          {fechaObj.toLocaleDateString("es-ES", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </p>
+                      )}
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          className="bg-cyan-500 text-white p-1 rounded"
+                          onClick={() => handleEditInit(item)}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          className="bg-red-500 text-white p-1 rounded"
+                          onClick={() => handleDelete(item.id, item.quantity)}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </>
                   )}
-                  <button
-                    className="bg-red-500 text-white p-1 rounded w-fit"
-                    onClick={() => handleDelete(item.id, item.quantity)}
-                  >
-                    Eliminar
-                  </button>
                 </div>
               </>
             );
